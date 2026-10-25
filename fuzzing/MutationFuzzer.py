@@ -1,4 +1,5 @@
 import random
+import json
 
 from BaseFuzzer import BaseFuzzer
 
@@ -42,35 +43,92 @@ class MutationFuzzer(BaseFuzzer):
     def mutate(self, inp: str) -> str:
         """Apply a random mutation to the JSON input string"""
 
-        # TODO: Add your mutation here
         mutators = [
             self.mutation1,
             self.mutation2,
-            self.mutation3
+            self.mutation3,
         ]
 
         mutator = random.choice(mutators)
         return mutator(inp)
 
-    # TODO: Q2.6:
-    # def example_mutation(self, inp: str) -> str:
-    #     """Example of mutation definition"""
-    #     return inp + "a"
-    
+    # Q2.6:
+    def ma_mutation(self, inp: str) -> str:
+        """
+        Applique une mutation structurelle respectant ou testant la grammaire JSON :
+        - Sur un JSON valide : modification des dictionnaires et listes (ajout, suppression,
+          remplacement de type, imbrication).
+        - Sur un JSON invalide (fallback) : manipulation structurelle de syntaxe
+          (ajouts/suppressions de délimiteurs).
+        """
+        try:
+            data = json.loads(inp)
+
+            def mutate_structure(obj):
+                if isinstance(obj, dict):
+                    if not obj:
+                        obj[f"key_{random.randint(0, 100)}"] = random.choice([None, True, 123, "fuzz"])
+                        return obj
+
+                    choice = random.choice(['add', 'delete', 'replace', 'nest'])
+                    if choice == 'add':
+                        obj[f"fuzz_{random.randint(0, 1000)}"] = random.choice([[], {}, random.randint(-100, 100)])
+                    elif choice == 'delete' and obj:
+                        k = random.choice(list(obj.keys()))
+                        del obj[k]
+                    elif choice == 'replace' and obj:
+                        k = random.choice(list(obj.keys()))
+                        obj[k] = random.choice([None, [], {}, "malformed_type"])
+                    elif choice == 'nest' and obj:
+                        k = random.choice(list(obj.keys()))
+                        obj[k] = {f"nested_{k}": obj[k]}
+
+                    for k, v in list(obj.items()):
+                        if isinstance(v, (dict, list)) and random.random() < 0.3:
+                            obj[k] = mutate_structure(v)
+
+                elif isinstance(obj, list):
+                    choice = random.choice(['add', 'delete', 'nest_item'])
+                    if choice == 'add':
+                        obj.append(random.choice([None, 42, "item", {}]))
+                    elif choice == 'delete' and obj:
+                        obj.pop(random.randint(0, len(obj) - 1))
+                    elif choice == 'nest_item' and obj:
+                        idx = random.randint(0, len(obj) - 1)
+                        obj[idx] = [obj[idx]]
+
+                return obj
+
+            mutated_data = mutate_structure(data)
+            return json.dumps(mutated_data)
+
+        except (json.JSONDecodeError, TypeError):
+            mutations = [
+                lambda s: s + '}',
+                lambda s: s + ']',
+                lambda s: s.replace(':', ',') if ':' in s else s + ':',
+                lambda s: s.replace(',', ''),
+                lambda s: '{' + s + '}'
+            ]
+            if inp:
+                func = random.choice(mutations)
+                return func(inp)
+            return "{}"
+
     def mutation1(self, inp: str) -> str:
         if len(inp) == 0:
             return inp
         chars = list(inp)
         random.shuffle(chars)
         return ''.join(chars)
-    
+
     def mutation2(self, inp: str) -> str:
         if len(inp) == 0:
             return inp
         index = random.randint(0, len(inp) - 1)
-        char = chr(random.randint(32, 126)) 
+        char = chr(random.randint(32, 126))
         return inp[:index] + char + inp[index:]
-    
+
     def mutation3(self, inp: str) -> str:
         if len(inp) == 0:
             return inp

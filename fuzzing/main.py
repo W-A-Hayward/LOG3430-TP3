@@ -10,11 +10,11 @@ from GrammarFuzzer import GrammarFuzzer
 from analytics import analyze_all
 
 #TODO: Modifier le NUM_TRIALS
-NUM_TRIALS = 1
+NUM_TRIALS = 2000
 
 
 #TODO: mettre votre matricule
-RANDOM_SEED = 32143259453
+RANDOM_SEED = 2291286
 
 MAX_DUPLICATES = 5
 
